@@ -247,6 +247,14 @@ cargo fmt --check
 cargo deny check advisories licenses
 ```
 
+An end-to-end suite against a **real Keycloak** (testcontainer, realm-imported with the exact IdP-side setup the README prescribes: `mcp:tools` client scope, audience mapper for the resource URL, pre-registered confidential clients) is ignored by default because it needs Docker:
+
+```sh
+cargo test --test keycloak -- --ignored
+```
+
+It covers both validation modes: JWKS (happy path, missing scope → 403, missing resource audience → 401) and introspection (happy path, audience enforcement, immediate rejection of a revoked token). CI runs it as a separate job. It doubles as a working reference for configuring any IdP — the realm import JSON is in [`tests/keycloak.rs`](tests/keycloak.rs).
+
 No `unsafe` anywhere (`#![forbid(unsafe_code)]`).
 
 ## Future work (deliberately out of scope for v1)
