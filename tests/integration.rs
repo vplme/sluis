@@ -96,11 +96,15 @@ impl TokenSpec {
 }
 
 fn mint(spec: &TokenSpec) -> String {
+    mint_with_extra_claims(spec, json!({}))
+}
+
+fn mint_with_extra_claims(spec: &TokenSpec, extra: serde_json::Value) -> String {
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap()
         .as_secs() as i64;
-    let claims = json!({
+    let mut claims = json!({
         "iss": spec.issuer,
         "aud": spec.aud,
         "sub": "alice",
@@ -108,6 +112,10 @@ fn mint(spec: &TokenSpec) -> String {
         "iat": now,
         "exp": now + spec.exp_offset_secs,
     });
+    claims
+        .as_object_mut()
+        .unwrap()
+        .extend(extra.as_object().cloned().unwrap_or_default());
     let mut header = Header::new(Algorithm::RS256);
     header.kid = Some(spec.kid.to_owned());
     let key = EncodingKey::from_rsa_pem(spec.signing_pem.as_bytes()).expect("test key");
@@ -310,6 +318,42 @@ async fn full_flow_challenge_prm_authenticated_post_passthrough() {
     assert_eq!(headers.get("x-forwarded-scopes").unwrap(), "mcp:tools");
     assert_eq!(headers.get("mcp-method").unwrap(), "tools/list");
     assert_eq!(headers.get("mcp-protocol-version").unwrap(), "2026-07-28");
+}
+
+// ---------- pre-registered clients (no CIMD) ----------
+
+/// How the client obtained its client_id is the AS's business, not the
+/// resource server's. Tokens minted for a manually pre-registered OAuth
+/// client (`claude mcp add --client-id … --client-secret`) carry
+/// client-identifying claims — `client_id` (RFC 9068) and/or `azp`
+/// (Keycloak & friends) — and must validate exactly like tokens from a
+/// CIMD-registered client: the extra claims are ignored, policy is
+/// unchanged.
+#[tokio::test]
+async fn preregistered_client_tokens_validate_like_cimd_ones() {
+    let as_server = mock_as().await;
+    let (upstream, seen) = spawn_upstream().await;
+    let app = build_app(&as_server.uri(), upstream, json!({})).await;
+
+    let token = mint_with_extra_claims(
+        &TokenSpec::valid(&as_server.uri()),
+        json!({ "client_id": "sluis-claude-code", "azp": "sluis-claude-code" }),
+    );
+    let res = app
+        .clone()
+        .oneshot(mcp_post(Some(&token), "tools/list", None))
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    let body: serde_json::Value = serde_json::from_str(&body_string(res).await).unwrap();
+    assert_eq!(body["result"]["ok"], json!(true));
+
+    // Identity headers still come from the validated token's `sub`/`scope`,
+    // never from the client identity claims.
+    let requests = seen.requests.lock().await;
+    let (_, headers) = requests.last().expect("upstream saw the request");
+    assert_eq!(headers.get("x-forwarded-user").unwrap(), "alice");
+    assert_eq!(headers.get("x-forwarded-scopes").unwrap(), "mcp:tools");
 }
 
 // ---------- negative token matrix (claims fully controlled here) ----------

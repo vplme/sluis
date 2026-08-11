@@ -344,8 +344,7 @@ mod tests {
                 serde_json::from_value(value).expect("2025 spelling accepted");
             assert_eq!(compat, TransportCompat::Compat2025);
         }
-        let compat: TransportCompat =
-            serde_json::from_value(serde_json::json!("strict")).unwrap();
+        let compat: TransportCompat = serde_json::from_value(serde_json::json!("strict")).unwrap();
         assert_eq!(compat, TransportCompat::Strict);
         assert!(serde_json::from_value::<TransportCompat>(serde_json::json!("2026")).is_err());
         assert!(serde_json::from_value::<TransportCompat>(serde_json::json!(2026)).is_err());

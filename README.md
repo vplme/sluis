@@ -10,7 +10,7 @@ It is a **pure OAuth 2.1 resource server**. It does exactly three things:
 2. Validates bearer tokens issued by a configured external authorization server — signature, expiry, issuer, **audience**, scopes.
 3. Forwards valid requests to the upstream MCP server and streams responses back transparently.
 
-It never mints tokens, never handles login, never implements DCR or CIMD fetching — the external authorization server (which should support CIMD for client registration) does all of that. And it **never forwards client tokens upstream** (the token-passthrough anti-pattern).
+It never mints tokens, never handles login, never implements DCR or CIMD fetching — the external authorization server (which registers clients via CIMD and/or manual pre-registration) does all of that. And it **never forwards client tokens upstream** (the token-passthrough anti-pattern).
 
 ```mermaid
 sequenceDiagram
@@ -23,7 +23,7 @@ sequenceDiagram
     P->>C: 401, WWW-Authenticate: Bearer resource_metadata="…", scope="mcp:tools"
     C->>P: GET /.well-known/oauth-protected-resource
     P->>C: { resource, authorization_servers: [A], scopes_supported }
-    C->>A: discovery, client registration (CIMD), authorization + token request<br/>with resource=https://mcp.example.com/mcp (RFC 8707)
+    C->>A: discovery, client registration (CIMD or pre-registered client_id),<br/>authorization + token request with resource=https://mcp.example.com/mcp (RFC 8707)
     A->>C: access token (aud = https://mcp.example.com/mcp)
     C->>P: POST /mcp, Authorization: Bearer …, Mcp-Method: tools/call, Mcp-Name: …
     Note over P: validate signature/exp/nbf/iss/aud/scope<br/>strip Authorization, inject X-Forwarded-User
@@ -81,7 +81,7 @@ The proxy rejects any token whose `aud` does not contain the canonical resource 
 
 **IdP-side requirements** for this to work end to end:
 
-- The AS must support **CIMD** (Client ID Metadata Documents) so MCP clients can register by URL — or you pre-register clients manually.
+- Clients need a way to get a `client_id`: **CIMD** (Client ID Metadata Documents) support at the AS so MCP clients can register by URL, and/or clients pre-registered manually whose credentials are handed to the MCP client (see [pre-registered clients with Claude Code](#with-claude-code)). Both work; sluis is agnostic to registration mode.
 - The AS must set the token `aud` from the **RFC 8707 `resource` parameter** that MCP clients send (`resource=https://mcp.example.com/mcp`). In Keycloak that's an audience mapper / fine-grained resource support; in other IdPs the equivalent resource-indicator feature.
 - Define the scope(s) you configure in `required_scopes` (default `mcp:tools`) and allow clients to request them.
 
@@ -186,6 +186,22 @@ claude mcp add --transport http canal-gate https://mcp.example.com/mcp
 ```
 
 Claude Code detects the `401`, runs the same PRM → AS discovery → browser authorization flow, and stores the token. `/mcp` shows the connection; tool calls then flow through the proxy with per-request validation.
+
+By default Claude Code registers itself at the AS dynamically (CIMD/DCR). A pre-registered client works just as well — whether the AS lacks dynamic registration or you simply want a fixed, admin-controlled client. Register a client at the AS and hand its credentials to Claude Code:
+
+```sh
+claude mcp add --transport http \
+  --client-id sluis-claude-code \
+  --client-secret \
+  --callback-port 8976 \
+  canal-gate https://mcp.example.com/mcp
+```
+
+- `--client-secret` prompts for the secret with masked input (or reads `MCP_CLIENT_SECRET`); omit it for a public client with PKCE.
+- Register the redirect URI `http://localhost:8976/callback` at the AS — the path is fixed, the port must match `--callback-port`.
+- The AS-side requirements from [audience validation](#audience-validation-is-not-optional) still apply to the pre-registered client: it must be allowed the configured scopes and get `aud` set from the RFC 8707 `resource` parameter.
+
+Nothing changes on the sluis side: discovery and token validation are identical, and the proxy neither knows nor cares how the client obtained its `client_id`. Tokens minted for pre-registered clients (with their `client_id`/`azp` claims) are covered in the integration tests.
 
 ### Smoke test: compat mode in front of flux-operator-mcp
 
