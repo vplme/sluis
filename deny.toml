@@ -1,0 +1,33 @@
+# cargo-deny configuration — checked in CI via `cargo deny check advisories licenses`.
+
+[advisories]
+version = 2
+yanked = "deny"
+ignore = [
+    # Marvin attack: RSA *private-key* operations leak timing information.
+    # sluis only verifies signatures with public JWKS keys — no RSA private
+    # key ever exists in the process (test signing keys are throwaway).
+    # No patched `rsa` release exists yet; re-evaluate when one does.
+    { id = "RUSTSEC-2023-0071", reason = "verify-only RSA usage; no private-key operations in production code" },
+]
+
+[licenses]
+version = 2
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Unicode-3.0",
+    "Zlib",
+    "MPL-2.0",
+    "CDLA-Permissive-2.0",
+]
+
+# ring's license file combines ISC/OpenSSL-style texts; clarify it the usual way.
+[[licenses.clarify]]
+crate = "ring"
+expression = "MIT AND ISC AND OpenSSL"
+license-files = [{ path = "LICENSE", hash = 0xbd0eed23 }]

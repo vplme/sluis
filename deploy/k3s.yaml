@@ -1,0 +1,90 @@
+# Minimal K3s example: sluis in front of an unsecured in-cluster MCP server.
+# Replace the image, URLs, and ingress host for your environment. TLS is
+# terminated at the ingress (Traefik on stock K3s); sluis serves plain HTTP.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sluis-config
+  namespace: mcp
+data:
+  sluis.yaml: |
+    proxy_public_url: https://mcp.example.com
+    upstream_mcp_url: http://flux-operator-mcp.flux-system.svc:9090/mcp
+    oidc_issuer_url: https://idp.example.com/realms/lab
+    transport_compat: "2025"           # flux-operator-mcp speaks the 2025 dialect
+    scopes_supported: [mcp:tools]
+    required_scopes: [mcp:tools]
+    identity_headers_enabled: true
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sluis
+  namespace: mcp
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: sluis }
+  template:
+    metadata:
+      labels: { app: sluis }
+    spec:
+      # `sluis check` fails the pod fast on IdP/config problems, before the
+      # proxy starts accepting traffic.
+      initContainers:
+        - name: check
+          image: ghcr.io/vpl/sluis:0.1.0
+          args: ["check", "--config", "/etc/sluis/sluis.yaml"]
+          volumeMounts:
+            - { name: config, mountPath: /etc/sluis, readOnly: true }
+      containers:
+        - name: sluis
+          image: ghcr.io/vpl/sluis:0.1.0
+          args: ["serve", "--config", "/etc/sluis/sluis.yaml"]
+          ports:
+            - { name: http, containerPort: 8080 }
+          livenessProbe:
+            httpGet: { path: /healthz, port: http }
+          readinessProbe:
+            # Deliberately not IdP-dependent: an IdP outage must not evict
+            # the proxy (JWKS mode keeps serving with cached keys).
+            httpGet: { path: /healthz, port: http }
+          resources:
+            requests: { cpu: 50m, memory: 32Mi }
+            limits: { memory: 128Mi }
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+      volumes:
+        - name: config
+          configMap: { name: sluis-config }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sluis
+  namespace: mcp
+spec:
+  selector: { app: sluis }
+  ports:
+    - { name: http, port: 80, targetPort: http }
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: sluis
+  namespace: mcp
+spec:
+  rules:
+    - host: mcp.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: sluis
+                port: { name: http }
+  tls:
+    - hosts: [mcp.example.com]
+      secretName: mcp-example-com-tls
