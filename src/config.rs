@@ -21,17 +21,53 @@ pub enum TokenValidationMode {
 }
 
 /// Which Streamable HTTP dialect the upstream speaks.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TransportCompat {
     /// 2026-07-28 transport: stateless, POST-only, mandatory `Mcp-Method`
     /// header (default).
-    #[serde(rename = "strict")]
     Strict,
     /// 2025-era dialect: sessions via `Mcp-Session-Id`, GET listening
     /// streams, DELETE for session teardown, no 2026 metadata headers.
     /// Authorization semantics are identical; only transport shape relaxes.
-    #[serde(rename = "2025")]
     Compat2025,
+}
+
+// Hand-rolled so the "2025" spelling also works where the source has already
+// turned it into a number: unquoted YAML, and env vars under the `config`
+// crate's try_parsing.
+impl<'de> Deserialize<'de> for TransportCompat {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        struct V;
+        impl serde::de::Visitor<'_> for V {
+            type Value = TransportCompat;
+
+            fn expecting(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                f.write_str(r#""strict" or "2025""#)
+            }
+
+            fn visit_str<E: serde::de::Error>(self, v: &str) -> Result<Self::Value, E> {
+                match v {
+                    "strict" => Ok(TransportCompat::Strict),
+                    "2025" => Ok(TransportCompat::Compat2025),
+                    _ => Err(E::invalid_value(serde::de::Unexpected::Str(v), &self)),
+                }
+            }
+
+            fn visit_u64<E: serde::de::Error>(self, v: u64) -> Result<Self::Value, E> {
+                match v {
+                    2025 => Ok(TransportCompat::Compat2025),
+                    _ => Err(E::invalid_value(serde::de::Unexpected::Unsigned(v), &self)),
+                }
+            }
+
+            fn visit_i64<E: serde::de::Error>(self, v: i64) -> Result<Self::Value, E> {
+                u64::try_from(v)
+                    .map_err(|_| E::invalid_value(serde::de::Unexpected::Signed(v), &self))
+                    .and_then(|v| self.visit_u64(v))
+            }
+        }
+        deserializer.deserialize_any(V)
+    }
 }
 
 /// Runtime configuration. See the README for the full reference.
@@ -299,6 +335,20 @@ mod tests {
         assert_eq!(cfg.transport_compat, TransportCompat::Strict);
         assert_eq!(cfg.max_body_bytes, 2 * 1024 * 1024);
         cfg.validate().expect("default config is valid");
+    }
+
+    #[test]
+    fn transport_compat_accepts_string_and_number() {
+        for value in [serde_json::json!("2025"), serde_json::json!(2025)] {
+            let compat: TransportCompat =
+                serde_json::from_value(value).expect("2025 spelling accepted");
+            assert_eq!(compat, TransportCompat::Compat2025);
+        }
+        let compat: TransportCompat =
+            serde_json::from_value(serde_json::json!("strict")).unwrap();
+        assert_eq!(compat, TransportCompat::Strict);
+        assert!(serde_json::from_value::<TransportCompat>(serde_json::json!("2026")).is_err());
+        assert!(serde_json::from_value::<TransportCompat>(serde_json::json!(2026)).is_err());
     }
 
     #[test]
