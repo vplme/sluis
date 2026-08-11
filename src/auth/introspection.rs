@@ -83,6 +83,9 @@ impl IntrospectionValidator {
             .post(&self.endpoint)
             .basic_auth(&self.client_id, Some(&self.client_secret))
             .form(&[("token", token)])
+            // Hard deadline: a hung IdP must fail the request as 503, not
+            // hang it (the shared client has no total timeout).
+            .timeout(Duration::from_secs(10))
             .send()
             .await
             .map_err(|e| AuthError::Unavailable {

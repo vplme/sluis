@@ -82,6 +82,9 @@ async fn fetch_metadata(
 ) -> Result<Option<AuthorizationServerMetadata>, DiscoveryError> {
     let response = http
         .get(url)
+        // The shared client has no total timeout (long-lived proxy streams);
+        // AS metadata requests get their own hard deadline.
+        .timeout(std::time::Duration::from_secs(10))
         .send()
         .await
         .map_err(|e| DiscoveryError::Fetch {

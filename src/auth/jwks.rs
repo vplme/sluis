@@ -194,6 +194,8 @@ async fn fetch_jwks(
 ) -> Result<HashMap<Option<String>, CachedKey>, DiscoveryError> {
     let jwks: JwkSet = http
         .get(jwks_uri)
+        // Hard deadline: the shared client deliberately has no total timeout.
+        .timeout(Duration::from_secs(10))
         .send()
         .await
         .and_then(reqwest::Response::error_for_status)
