@@ -45,10 +45,7 @@ impl AuthorizationServerMetadata {
     /// The document's `issuer` must equal the configured issuer (modulo a
     /// trailing slash), per RFC 8414 §3.3 — otherwise tokens from a different
     /// realm at the same host could be accepted.
-    pub async fn discover(
-        http: &reqwest::Client,
-        issuer: &Url,
-    ) -> Result<Self, DiscoveryError> {
+    pub async fn discover(http: &reqwest::Client, issuer: &Url) -> Result<Self, DiscoveryError> {
         let base = issuer.as_str().trim_end_matches('/');
         let candidates = [
             format!("{base}/.well-known/openid-configuration"),

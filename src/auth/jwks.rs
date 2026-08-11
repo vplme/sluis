@@ -145,12 +145,12 @@ impl TokenValidator for JwksValidator {
             reason: format!("undecodable JWT header: {e}"),
         })?;
 
-        let cached = self
-            .key_for(header.kid.as_deref())
-            .await
-            .ok_or_else(|| AuthError::InvalidToken {
-                reason: format!("no JWKS key for kid {:?}", header.kid),
-            })?;
+        let cached =
+            self.key_for(header.kid.as_deref())
+                .await
+                .ok_or_else(|| AuthError::InvalidToken {
+                    reason: format!("no JWKS key for kid {:?}", header.kid),
+                })?;
 
         if !cached.algorithms.contains(&header.alg) {
             return Err(AuthError::InvalidToken {
@@ -211,9 +211,11 @@ async fn fetch_jwks(
     let mut by_kid = HashMap::new();
     for jwk in &jwks.keys {
         let algorithms = match allowed_algorithms(&jwk.algorithm) {
-            Some(algs) => match jwk.common.key_algorithm.and_then(|a| {
-                a.to_string().parse::<Algorithm>().ok()
-            }) {
+            Some(algs) => match jwk
+                .common
+                .key_algorithm
+                .and_then(|a| a.to_string().parse::<Algorithm>().ok())
+            {
                 // If the JWK pins an alg, honor it; otherwise allow the
                 // asymmetric algorithms of its key family.
                 Some(pinned) if algs.contains(&pinned) => vec![pinned],

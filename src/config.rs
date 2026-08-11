@@ -236,7 +236,12 @@ impl Config {
             ));
         }
         if self.token_validation == TokenValidationMode::Introspection {
-            if self.introspection_client_id.as_deref().unwrap_or("").is_empty() {
+            if self
+                .introspection_client_id
+                .as_deref()
+                .unwrap_or("")
+                .is_empty()
+            {
                 return Err(ConfigError::invalid(
                     "introspection_client_id",
                     "required when token_validation = introspection",

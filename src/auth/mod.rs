@@ -144,9 +144,7 @@ pub(crate) fn scopes_from_claims(claims: &serde_json::Value) -> Vec<String> {
 pub(crate) fn audience_matches(aud: Option<&serde_json::Value>, resource: &str) -> bool {
     match aud {
         Some(serde_json::Value::String(s)) => s == resource,
-        Some(serde_json::Value::Array(items)) => {
-            items.iter().any(|v| v.as_str() == Some(resource))
-        }
+        Some(serde_json::Value::Array(items)) => items.iter().any(|v| v.as_str() == Some(resource)),
         _ => false,
     }
 }
@@ -186,11 +184,11 @@ mod tests {
 
     #[test]
     fn scopes_from_scope_string_and_scp_array() {
+        assert_eq!(scopes_from_claims(&json!({"scope": "a b"})), vec!["a", "b"]);
         assert_eq!(
-            scopes_from_claims(&json!({"scope": "a b"})),
-            vec!["a", "b"]
+            scopes_from_claims(&json!({"scp": ["x", "y"]})),
+            vec!["x", "y"]
         );
-        assert_eq!(scopes_from_claims(&json!({"scp": ["x", "y"]})), vec!["x", "y"]);
         assert_eq!(scopes_from_claims(&json!({"scp": "x y"})), vec!["x", "y"]);
         assert!(scopes_from_claims(&json!({})).is_empty());
     }
@@ -199,8 +197,14 @@ mod tests {
     fn audience_requires_exact_resource_match() {
         let resource = "https://mcp.example.com/mcp";
         assert!(audience_matches(Some(&json!(resource)), resource));
-        assert!(audience_matches(Some(&json!(["other", resource])), resource));
-        assert!(!audience_matches(Some(&json!("https://mcp.example.com")), resource));
+        assert!(audience_matches(
+            Some(&json!(["other", resource])),
+            resource
+        ));
+        assert!(!audience_matches(
+            Some(&json!("https://mcp.example.com")),
+            resource
+        ));
         assert!(!audience_matches(Some(&json!("api")), resource));
         assert!(!audience_matches(None, resource));
     }

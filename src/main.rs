@@ -12,7 +12,11 @@ use sluis::app;
 use sluis::config::TokenValidationMode;
 
 #[derive(Parser)]
-#[command(name = "sluis", version, about = "OAuth 2.1 resource-server proxy for MCP")]
+#[command(
+    name = "sluis",
+    version,
+    about = "OAuth 2.1 resource-server proxy for MCP"
+)]
 struct Cli {
     /// Path to the YAML config file (env: SLUIS_CONFIG; flag wins).
     #[arg(long, global = true, env = "SLUIS_CONFIG", value_name = "PATH")]
@@ -53,9 +57,7 @@ fn main() -> anyhow::Result<()> {
 fn load_config(path: Option<&std::path::Path>) -> anyhow::Result<sluis::Config> {
     let mut builder = config::Config::builder();
     if let Some(path) = path {
-        builder = builder.add_source(
-            config::File::from(path).format(config::FileFormat::Yaml),
-        );
+        builder = builder.add_source(config::File::from(path).format(config::FileFormat::Yaml));
     }
     // SLUIS_CONFIG selects the file itself and must not be treated as a
     // settings key, so feed the env source a pre-filtered variable map.
@@ -110,10 +112,22 @@ fn print_redacted(config: &sluis::Config) {
     println!("resource (canonical):         {}", config.resource_url());
     println!("mcp_path:                     {}", config.mcp_path);
     println!("bind_addr:                    {}", config.bind_addr);
-    println!("token_validation:             {:?}", config.token_validation);
-    println!("transport_compat:             {:?}", config.transport_compat);
-    println!("scopes_supported:             {}", config.scopes_supported.join(", "));
-    println!("required_scopes:              {}", config.required_scopes.join(", "));
+    println!(
+        "token_validation:             {:?}",
+        config.token_validation
+    );
+    println!(
+        "transport_compat:             {:?}",
+        config.transport_compat
+    );
+    println!(
+        "scopes_supported:             {}",
+        config.scopes_supported.join(", ")
+    );
+    println!(
+        "required_scopes:              {}",
+        config.required_scopes.join(", ")
+    );
     if !config.method_scopes.is_empty() {
         let mut methods: Vec<_> = config.method_scopes.iter().collect();
         methods.sort_by_key(|(m, _)| m.as_str());
@@ -130,7 +144,10 @@ fn print_redacted(config: &sluis::Config) {
     }
     println!("jwks_cache_ttl:               {}s", config.jwks_cache_ttl);
     println!("clock_skew_secs:              {}s", config.clock_skew_secs);
-    println!("identity_headers_enabled:     {}", config.identity_headers_enabled);
+    println!(
+        "identity_headers_enabled:     {}",
+        config.identity_headers_enabled
+    );
     println!(
         "upstream_connect_timeout:     {}s",
         config.upstream_connect_timeout_secs
@@ -139,7 +156,10 @@ fn print_redacted(config: &sluis::Config) {
         Some(s) => println!("upstream_idle_timeout:        {s}s"),
         None => println!("upstream_idle_timeout:        disabled"),
     }
-    println!("shutdown_grace_secs:          {}s", config.shutdown_grace_secs);
+    println!(
+        "shutdown_grace_secs:          {}s",
+        config.shutdown_grace_secs
+    );
     println!("max_body_bytes:               {}", config.max_body_bytes);
     match &config.allowed_origins {
         Some(origins) => println!("allowed_origins:              {}", origins.join(", ")),

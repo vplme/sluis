@@ -56,10 +56,7 @@ impl ProxyState {
 ///
 /// Runs strictly *after* [`crate::auth::McpAuthLayer`]; the [`AuthContext`]
 /// extension is present on every request that reaches this point.
-pub async fn proxy_handler(
-    State(state): State<Arc<ProxyState>>,
-    req: Request<Body>,
-) -> Response {
+pub async fn proxy_handler(State(state): State<Arc<ProxyState>>, req: Request<Body>) -> Response {
     if state.compat == TransportCompat::Strict
         && let Err(response) = validate_strict_headers(req.method(), req.headers())
     {
@@ -126,10 +123,7 @@ pub async fn proxy_handler(
 /// `Mcp-Name` is required exactly when `Mcp-Method` is one of `tools/call`,
 /// `resources/read`, `prompts/get` — decidable from headers alone, without
 /// parsing the body (the upstream re-validates header/body consistency).
-fn validate_strict_headers(
-    method: &Method,
-    headers: &HeaderMap,
-) -> Result<(), Box<Response>> {
+fn validate_strict_headers(method: &Method, headers: &HeaderMap) -> Result<(), Box<Response>> {
     debug_assert_eq!(method, Method::POST, "non-POST is rejected by routing");
     if header_str(headers, "mcp-protocol-version").is_none() {
         return Err(Box::new(header_mismatch_response(
@@ -266,7 +260,10 @@ mod tests {
         h.insert("mcp-name", "get_weather".parse().unwrap());
         h.insert("mcp-protocol-version", "2026-07-28".parse().unwrap());
         h.insert("mcp-session-id", "abc123".parse().unwrap());
-        h.insert("accept", "application/json, text/event-stream".parse().unwrap());
+        h.insert(
+            "accept",
+            "application/json, text/event-stream".parse().unwrap(),
+        );
         h.insert("content-type", "application/json".parse().unwrap());
         h.insert("connection", "keep-alive".parse().unwrap());
         h.insert("host", "mcp.example.com".parse().unwrap());
@@ -282,27 +279,43 @@ mod tests {
 
     #[test]
     fn authorization_never_reaches_upstream() {
-        let headers = build_upstream_headers(&client_headers(), &auth(), &state(TransportCompat::Strict, true));
+        let headers = build_upstream_headers(
+            &client_headers(),
+            &auth(),
+            &state(TransportCompat::Strict, true),
+        );
         assert!(headers.get("authorization").is_none());
     }
 
     #[test]
     fn inbound_identity_headers_are_replaced_not_forwarded() {
-        let headers = build_upstream_headers(&client_headers(), &auth(), &state(TransportCompat::Strict, true));
+        let headers = build_upstream_headers(
+            &client_headers(),
+            &auth(),
+            &state(TransportCompat::Strict, true),
+        );
         assert_eq!(headers.get("x-forwarded-user").unwrap(), "alice");
         assert_eq!(headers.get("x-forwarded-scopes").unwrap(), "mcp:tools");
     }
 
     #[test]
     fn identity_headers_stripped_when_disabled() {
-        let headers = build_upstream_headers(&client_headers(), &auth(), &state(TransportCompat::Strict, false));
+        let headers = build_upstream_headers(
+            &client_headers(),
+            &auth(),
+            &state(TransportCompat::Strict, false),
+        );
         assert!(headers.get("x-forwarded-user").is_none());
         assert!(headers.get("x-forwarded-scopes").is_none());
     }
 
     #[test]
     fn mcp_headers_are_preserved() {
-        let headers = build_upstream_headers(&client_headers(), &auth(), &state(TransportCompat::Strict, false));
+        let headers = build_upstream_headers(
+            &client_headers(),
+            &auth(),
+            &state(TransportCompat::Strict, false),
+        );
         assert_eq!(headers.get("mcp-method").unwrap(), "tools/call");
         assert_eq!(headers.get("mcp-name").unwrap(), "get_weather");
         assert_eq!(headers.get("mcp-protocol-version").unwrap(), "2026-07-28");
@@ -315,16 +328,28 @@ mod tests {
 
     #[test]
     fn hop_by_hop_and_host_are_dropped() {
-        let headers = build_upstream_headers(&client_headers(), &auth(), &state(TransportCompat::Strict, false));
+        let headers = build_upstream_headers(
+            &client_headers(),
+            &auth(),
+            &state(TransportCompat::Strict, false),
+        );
         assert!(headers.get("connection").is_none());
         assert!(headers.get("host").is_none());
     }
 
     #[test]
     fn session_id_dropped_in_strict_passed_in_compat() {
-        let strict = build_upstream_headers(&client_headers(), &auth(), &state(TransportCompat::Strict, false));
+        let strict = build_upstream_headers(
+            &client_headers(),
+            &auth(),
+            &state(TransportCompat::Strict, false),
+        );
         assert!(strict.get("mcp-session-id").is_none());
-        let compat = build_upstream_headers(&client_headers(), &auth(), &state(TransportCompat::Compat2025, false));
+        let compat = build_upstream_headers(
+            &client_headers(),
+            &auth(),
+            &state(TransportCompat::Compat2025, false),
+        );
         assert_eq!(compat.get("mcp-session-id").unwrap(), "abc123");
     }
 

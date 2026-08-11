@@ -58,9 +58,11 @@ impl IntrospectionValidator {
         clock_skew_secs: u64,
     ) -> Result<Self, DiscoveryError> {
         let metadata = AuthorizationServerMetadata::discover(&http, issuer).await?;
-        let endpoint = metadata.introspection_endpoint.ok_or(DiscoveryError::MissingField {
-            field: "introspection_endpoint",
-        })?;
+        let endpoint = metadata
+            .introspection_endpoint
+            .ok_or(DiscoveryError::MissingField {
+                field: "introspection_endpoint",
+            })?;
         tracing::info!(issuer = %metadata.issuer, endpoint = %endpoint, "introspection validator ready");
         Ok(Self {
             http,

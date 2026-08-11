@@ -57,7 +57,10 @@ pub async fn build_validator(
                 config.resource_url(),
                 // validate() guarantees presence in introspection mode.
                 config.introspection_client_id.clone().unwrap_or_default(),
-                config.introspection_client_secret.clone().unwrap_or_default(),
+                config
+                    .introspection_client_secret
+                    .clone()
+                    .unwrap_or_default(),
                 config.clock_skew_secs,
             )
             .await?,
@@ -108,22 +111,24 @@ pub fn build_router(config: &Config, validator: Arc<dyn TokenValidator>) -> Rout
         .route(&config.mcp_path, mcp_endpoint.with_state(proxy_state))
         .layer(McpAuthLayer::from_config(config, validator))
         // Outside auth: reject disallowed Origins before any token work.
-        .layer(axum::middleware::from_fn(move |req: Request<Body>, next: Next| {
-            let allowed = allowed_origins.clone();
-            async move {
-                if let Some(allowed) = allowed
-                    && let Some(origin) = req.headers().get(header::ORIGIN)
-                {
-                    let ok = origin
-                        .to_str()
-                        .is_ok_and(|o| allowed.iter().any(|a| a == o));
-                    if !ok {
-                        return (StatusCode::FORBIDDEN, "origin not allowed").into_response();
+        .layer(axum::middleware::from_fn(
+            move |req: Request<Body>, next: Next| {
+                let allowed = allowed_origins.clone();
+                async move {
+                    if let Some(allowed) = allowed
+                        && let Some(origin) = req.headers().get(header::ORIGIN)
+                    {
+                        let ok = origin
+                            .to_str()
+                            .is_ok_and(|o| allowed.iter().any(|a| a == o));
+                        if !ok {
+                            return (StatusCode::FORBIDDEN, "origin not allowed").into_response();
+                        }
                     }
+                    next.run(req).await
                 }
-                next.run(req).await
-            }
-        }))
+            },
+        ))
         .layer(RequestBodyLimitLayer::new(config.max_body_bytes));
 
     Router::new()

@@ -26,7 +26,11 @@ impl ProtectedResourceMetadata {
             resource: config.resource_url(),
             // RFC 8414 §2: the issuer identifier must have no trailing slash.
             authorization_servers: vec![
-                config.oidc_issuer_url.as_str().trim_end_matches('/').to_owned(),
+                config
+                    .oidc_issuer_url
+                    .as_str()
+                    .trim_end_matches('/')
+                    .to_owned(),
             ],
             scopes_supported: config.scopes_supported.clone(),
             bearer_methods_supported: vec!["header".to_owned()],

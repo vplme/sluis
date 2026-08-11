@@ -303,7 +303,10 @@ mod tests {
 
     #[tokio::test]
     async fn missing_token_gets_401_with_prm_challenge() {
-        let app = app(StaticValidator(Ok(ok_claims(&["mcp:tools"]))), HashMap::new());
+        let app = app(
+            StaticValidator(Ok(ok_claims(&["mcp:tools"]))),
+            HashMap::new(),
+        );
         let res = app.oneshot(post_req(None, None)).await.unwrap();
         assert_eq!(res.status(), StatusCode::UNAUTHORIZED);
         let www = res.headers()[header::WWW_AUTHENTICATE].to_str().unwrap();
@@ -331,10 +334,7 @@ mod tests {
     #[tokio::test]
     async fn insufficient_scope_gets_403_with_required_scope() {
         let app = app(StaticValidator(Ok(ok_claims(&["other"]))), HashMap::new());
-        let res = app
-            .oneshot(post_req(Some("Bearer t"), None))
-            .await
-            .unwrap();
+        let res = app.oneshot(post_req(Some("Bearer t"), None)).await.unwrap();
         assert_eq!(res.status(), StatusCode::FORBIDDEN);
         let www = res.headers()[header::WWW_AUTHENTICATE].to_str().unwrap();
         assert!(www.contains("error=\"insufficient_scope\""));
@@ -346,7 +346,10 @@ mod tests {
         let overrides = HashMap::from([("tools/call".to_owned(), vec!["mcp:admin".to_owned()])]);
 
         // Token with only the base scope: fine for tools/list...
-        let app1 = app(StaticValidator(Ok(ok_claims(&["mcp:tools"]))), overrides.clone());
+        let app1 = app(
+            StaticValidator(Ok(ok_claims(&["mcp:tools"]))),
+            overrides.clone(),
+        );
         let res = app1
             .oneshot(post_req(Some("Bearer t"), Some("tools/list")))
             .await
@@ -366,7 +369,10 @@ mod tests {
 
     #[tokio::test]
     async fn valid_token_reaches_inner_service_with_auth_context() {
-        let app = app(StaticValidator(Ok(ok_claims(&["mcp:tools"]))), HashMap::new());
+        let app = app(
+            StaticValidator(Ok(ok_claims(&["mcp:tools"]))),
+            HashMap::new(),
+        );
         let res = app
             .oneshot(post_req(Some("bearer t"), None)) // lowercase scheme is fine
             .await
