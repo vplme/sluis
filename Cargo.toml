@@ -1,0 +1,56 @@
+[package]
+name = "sluis"
+version = "0.1.0"
+edition = "2024"
+description = "OAuth 2.1 resource-server proxy for MCP"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/vpl/sluis"
+keywords = ["mcp", "oauth", "proxy", "resource-server"]
+categories = ["web-programming::http-server", "authentication"]
+
+[lib]
+name = "sluis"
+path = "src/lib.rs"
+
+[[bin]]
+name = "sluis"
+path = "src/main.rs"
+required-features = ["cli"]
+
+[features]
+default = ["cli"]
+# Binary-only dependencies. The library API must not leak these types.
+cli = ["dep:clap", "dep:config", "dep:anyhow", "dep:tracing-subscriber"]
+
+[dependencies]
+anyhow = { version = "1.0.104", optional = true }
+async-trait = "0.1.92"
+axum = "0.8.9"
+base64 = "0.23.1"
+bytes = "1.12.1"
+clap = { version = "4.6.6", features = ["derive", "env"], optional = true }
+config = { version = "0.15.25", default-features = false, features = ["yaml"], optional = true }
+futures-util = "0.3.34"
+http = "1.5.0"
+jsonwebtoken = "11.0.0"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "stream"] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
+sha2 = "0.11.0"
+thiserror = "2.0.20"
+tokio = { version = "1.53.1", features = ["full"] }
+tower = "0.5.3"
+tower-http = { version = "0.7.0", features = ["cors", "limit", "trace"] }
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"], optional = true }
+url = { version = "2.5.8", features = ["serde"] }
+
+[dev-dependencies]
+http-body-util = "0.1.4"
+rsa = "0.9.10"
+tower = { version = "0.5.3", features = ["util"] }
+wiremock = "0.6.5"
+
+[[example]]
+name = "embedded"
+required-features = []
