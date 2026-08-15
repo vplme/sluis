@@ -34,7 +34,7 @@ pub struct ProxyState {
     http: reqwest::Client,
     upstream_url: Url,
     compat: TransportCompat,
-    identity_headers_enabled: bool,
+    enable_identity_headers: bool,
 }
 
 impl ProxyState {
@@ -46,7 +46,7 @@ impl ProxyState {
             http,
             upstream_url: config.upstream_mcp_url.clone(),
             compat: config.transport_compat,
-            identity_headers_enabled: config.identity_headers_enabled,
+            enable_identity_headers: config.enable_identity_headers,
         }
     }
 }
@@ -161,7 +161,7 @@ fn build_upstream_headers(
         }
         headers.append(name.clone(), value.clone());
     }
-    if state.identity_headers_enabled {
+    if state.enable_identity_headers {
         if let Some(sub) = &auth.sub
             && let Ok(v) = HeaderValue::from_str(sub)
         {
@@ -247,7 +247,7 @@ mod tests {
             http: reqwest::Client::new(),
             upstream_url: "http://127.0.0.1:9/mcp".parse().unwrap(),
             compat,
-            identity_headers_enabled: identity,
+            enable_identity_headers: identity,
         }
     }
 

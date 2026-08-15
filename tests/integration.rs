@@ -194,7 +194,7 @@ async fn build_app(as_uri: &str, upstream: SocketAddr, overrides: serde_json::Va
         "proxyPublicUrl": PUBLIC_URL,
         "upstreamMcpUrl": format!("http://{upstream}/mcp"),
         "oidcIssuerUrl": as_uri,
-        "identityHeadersEnabled": true,
+        "enableIdentityHeaders": true,
     });
     cfg.as_object_mut()
         .unwrap()
@@ -525,7 +525,7 @@ async fn method_scope_override_enforced_from_header_only() {
     let app = build_app(
         &as_server.uri(),
         upstream,
-        json!({ "methodScopes": { "tools/call": ["mcp:tools", "mcp:tools:write"] } }),
+        json!({ "methodScopes": [{ "method": "tools/call", "scopes": ["mcp:tools", "mcp:tools:write"] }] }),
     )
     .await;
     let token = mint(&TokenSpec::valid(&as_server.uri())); // scope: mcp:tools only

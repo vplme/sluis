@@ -34,7 +34,7 @@ pub struct IntrospectionValidator {
     client_secret: String,
     issuer: String,
     resource: String,
-    clock_skew_secs: u64,
+    clock_skew_seconds: u64,
     /// Keyed by SHA-256 of the token so raw tokens never sit in memory as
     /// map keys.
     cache: RwLock<HashMap<[u8; 32], CacheEntry>>,
@@ -55,7 +55,7 @@ impl IntrospectionValidator {
         resource: String,
         client_id: String,
         client_secret: String,
-        clock_skew_secs: u64,
+        clock_skew_seconds: u64,
     ) -> Result<Self, DiscoveryError> {
         let metadata = AuthorizationServerMetadata::discover(&http, issuer).await?;
         let endpoint = metadata
@@ -71,7 +71,7 @@ impl IntrospectionValidator {
             client_secret,
             issuer: metadata.issuer,
             resource,
-            clock_skew_secs,
+            clock_skew_seconds,
             cache: RwLock::new(HashMap::new()),
         })
     }
@@ -124,14 +124,14 @@ impl IntrospectionValidator {
         let now = unix_now();
         let exp = body.get("exp").and_then(|v| v.as_u64());
         if let Some(exp) = exp
-            && exp + self.clock_skew_secs < now
+            && exp + self.clock_skew_seconds < now
         {
             return Err(AuthError::InvalidToken {
                 reason: "token is expired".into(),
             });
         }
         if let Some(nbf) = body.get("nbf").and_then(|v| v.as_u64())
-            && nbf > now + self.clock_skew_secs
+            && nbf > now + self.clock_skew_seconds
         {
             return Err(AuthError::InvalidToken {
                 reason: "token is not yet valid".into(),

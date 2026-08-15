@@ -14,7 +14,7 @@ data:
     transportCompat: "2025"            # flux-operator-mcp speaks the 2025 dialect
     scopesSupported: [mcp:tools]
     requiredScopes: [mcp:tools]
-    identityHeadersEnabled: true
+    enableIdentityHeaders: true
 ---
 apiVersion: apps/v1
 kind: Deployment

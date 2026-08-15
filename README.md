@@ -99,17 +99,17 @@ An optional YAML file (`--config` / `SLUIS_CONFIG`) plus `SLUIS_`-prefixed envir
 | `mcpPath` | `/mcp` | MCP endpoint path; also the resource-URL suffix |
 | `scopesSupported` | `mcp:tools` | Advertised in PRM (comma-separated in env) |
 | `requiredScopes` | `mcp:tools` | Enforced on every MCP request |
-| `methodScopes` | `{}` | Per-`Mcp-Method` overrides, e.g. stricter scopes for `tools/call` (YAML only; replaces the global list for that method) |
+| `methodScopes` | `[]` | Per-`Mcp-Method` overrides, e.g. stricter scopes for `tools/call` (YAML only; replaces the global list for that method) |
 | `tokenValidation` | `jwks` | `jwks` \| `introspection` |
 | `transportCompat` | `strict` | `strict` \| `"2025"` |
 | `introspectionClientId` / `introspectionClientSecret` | — | Required in introspection mode |
-| `jwksCacheTtl` | `300` | Seconds before background JWKS refresh |
-| `clockSkewSecs` | `30` | Leeway on `exp`/`nbf` |
-| `identityHeadersEnabled` | `false` | Inject `X-Forwarded-User` (= `sub`) and `X-Forwarded-Scopes` upstream; inbound values are always stripped either way |
-| `bindAddr` | `0.0.0.0:8080` | Listen socket |
-| `upstreamConnectTimeoutSecs` | `5` | TCP connect timeout to upstream |
-| `upstreamIdleTimeoutSecs` | disabled | Optional between-reads timeout; leave off if the upstream serves quiet long-lived streams without keep-alives |
-| `shutdownGraceSecs` | `20` | SIGTERM drain deadline before aborting in-flight streams |
+| `jwksCacheTtlSeconds` | `300` | Seconds before background JWKS refresh |
+| `clockSkewSeconds` | `30` | Leeway on `exp`/`nbf` |
+| `enableIdentityHeaders` | `false` | Inject `X-Forwarded-User` (= `sub`) and `X-Forwarded-Scopes` upstream; inbound values are always stripped either way |
+| `bindAddress` | `0.0.0.0:8080` | Listen socket |
+| `upstreamConnectTimeoutSeconds` | `5` | TCP connect timeout to upstream |
+| `upstreamIdleTimeoutSeconds` | disabled | Optional between-reads timeout; leave off if the upstream serves quiet long-lived streams without keep-alives |
+| `shutdownGracePeriodSeconds` | `20` | SIGTERM drain deadline before aborting in-flight streams |
 | `maxBodyBytes` | `2097152` | Request body cap (2 MiB) |
 | `allowedOrigins` | unset | When set, requests with an `Origin` header not in the list get `403`; when unset, `Origin` is not checked (see security notes) |
 
@@ -121,8 +121,9 @@ upstreamMcpUrl: http://127.0.0.1:9090/mcp
 oidcIssuerUrl: https://idp.example.com/realms/lab
 requiredScopes: [mcp:tools]
 methodScopes:
-  tools/call: [mcp:tools, mcp:tools:write]
-identityHeadersEnabled: true
+  - method: tools/call
+    scopes: [mcp:tools, mcp:tools:write]
+enableIdentityHeaders: true
 ```
 
 ## CLI
@@ -151,7 +152,7 @@ See [`examples/embedded.rs`](examples/embedded.rs).
 ## Operational behavior
 
 - **IdP outage**: `/healthz` never depends on the IdP. JWKS mode serves cached keys stale on refresh failure. Only startup discovery hard-fails.
-- **Graceful shutdown**: SIGTERM/SIGINT → stop accepting, drain in-flight requests up to `shutdownGraceSecs` (default 20 s), then abort remaining streams.
+- **Graceful shutdown**: SIGTERM/SIGINT → stop accepting, drain in-flight requests up to `shutdownGracePeriodSeconds` (default 20 s), then abort remaining streams.
 - **Streaming**: responses pass through with no buffering; `X-Accel-Buffering: no` from the upstream is forwarded as-is. No total-duration response timeout exists.
 - **CORS**: permissive (`GET`, any origin) on `/.well-known/*` only — browser-based MCP clients fetch PRM cross-origin. No permissive CORS on the MCP endpoint.
 

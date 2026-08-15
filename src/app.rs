@@ -25,8 +25,8 @@ use crate::proxy::{ProxyState, proxy_handler};
 /// streamed responses must be able to outlive any fixed deadline.
 pub fn build_http_client(config: &Config) -> Result<reqwest::Client, reqwest::Error> {
     let mut builder = reqwest::Client::builder()
-        .connect_timeout(Duration::from_secs(config.upstream_connect_timeout_secs));
-    if let Some(idle) = config.upstream_idle_timeout_secs {
+        .connect_timeout(Duration::from_secs(config.upstream_connect_timeout_seconds));
+    if let Some(idle) = config.upstream_idle_timeout_seconds {
         builder = builder.read_timeout(Duration::from_secs(idle));
     }
     builder.build()
@@ -45,8 +45,8 @@ pub async fn build_validator(
                 http,
                 &config.oidc_issuer_url,
                 config.resource_url(),
-                config.clock_skew_secs,
-                Duration::from_secs(config.jwks_cache_ttl),
+                config.clock_skew_seconds,
+                Duration::from_secs(config.jwks_cache_ttl_seconds),
             )
             .await?,
         )),
@@ -61,7 +61,7 @@ pub async fn build_validator(
                     .introspection_client_secret
                     .clone()
                     .unwrap_or_default(),
-                config.clock_skew_secs,
+                config.clock_skew_seconds,
             )
             .await?,
         )),
@@ -137,14 +137,14 @@ pub fn build_router(config: &Config, validator: Arc<dyn TokenValidator>) -> Rout
         .merge(mcp_router)
 }
 
-/// Serve `router` on `config.bind_addr` until SIGTERM/SIGINT, then stop
+/// Serve `router` on `config.bind_address` until SIGTERM/SIGINT, then stop
 /// accepting connections and drain in-flight requests for up to
-/// `shutdown_grace_secs` before aborting what remains.
+/// `shutdown_grace_period_seconds` before aborting what remains.
 pub async fn serve(config: &Config, router: Router) -> std::io::Result<()> {
-    let listener = tokio::net::TcpListener::bind(config.bind_addr).await?;
-    tracing::info!(addr = %config.bind_addr, "listening");
+    let listener = tokio::net::TcpListener::bind(config.bind_address).await?;
+    tracing::info!(addr = %config.bind_address, "listening");
 
-    let grace = Duration::from_secs(config.shutdown_grace_secs);
+    let grace = Duration::from_secs(config.shutdown_grace_period_seconds);
     let server = axum::serve(listener, router).with_graceful_shutdown(shutdown_signal());
 
     tokio::select! {

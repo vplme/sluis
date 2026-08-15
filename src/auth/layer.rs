@@ -82,7 +82,11 @@ impl McpAuthLayer {
             validator,
             config.prm_url(),
             config.required_scopes.clone(),
-            config.method_scopes.clone(),
+            config
+                .method_scopes
+                .iter()
+                .map(|o| (o.method.clone(), o.scopes.clone()))
+                .collect(),
         )
     }
 }

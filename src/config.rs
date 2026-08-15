@@ -4,7 +4,6 @@
 //! file, environment variables) is the binary's concern. Deserialize it once
 //! at startup, call [`Config::validate`], and pass it around by reference.
 
-use std::collections::HashMap;
 use std::net::SocketAddr;
 
 use serde::Deserialize;
@@ -70,6 +69,17 @@ impl<'de> Deserialize<'de> for TransportCompat {
     }
 }
 
+/// One per-method scope override; an associative-list entry keyed on
+/// `method` (Kubernetes style — duplicate methods are rejected).
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct MethodScopeOverride {
+    /// `Mcp-Method` header value this override applies to (e.g. `tools/call`).
+    pub method: String,
+    /// Scopes that replace the global `requiredScopes` for this method.
+    pub scopes: Vec<String>,
+}
+
 /// Runtime configuration. See the README for the full reference.
 ///
 /// All fields can come from a YAML file (camelCase keys, e.g.
@@ -102,12 +112,12 @@ pub struct Config {
     #[serde(default = "default_scopes")]
     pub required_scopes: Vec<String>,
 
-    /// Per-method scope overrides keyed on the `Mcp-Method` request header
+    /// Per-method scope overrides matched on the `Mcp-Method` request header
     /// (e.g. stricter scopes for `tools/call`). An override *replaces* the
     /// global `required_scopes` for that method. YAML-only in practice —
-    /// maps do not fit flat env vars.
+    /// lists of objects do not fit flat env vars.
     #[serde(default)]
-    pub method_scopes: HashMap<String, Vec<String>>,
+    pub method_scopes: Vec<MethodScopeOverride>,
 
     /// Token validation mode.
     #[serde(default = "default_token_validation")]
@@ -124,34 +134,34 @@ pub struct Config {
     pub introspection_client_secret: Option<String>,
 
     /// How long fetched JWKS keys stay fresh before a background refresh.
-    #[serde(default = "default_jwks_cache_ttl")]
-    pub jwks_cache_ttl: u64,
+    #[serde(default = "default_jwks_cache_ttl_seconds")]
+    pub jwks_cache_ttl_seconds: u64,
 
     /// Leeway applied to `exp`/`nbf` checks, in seconds.
     #[serde(default = "default_clock_skew")]
-    pub clock_skew_secs: u64,
+    pub clock_skew_seconds: u64,
 
     /// Inject `X-Forwarded-User` / `X-Forwarded-Scopes` towards the upstream.
     #[serde(default)]
-    pub identity_headers_enabled: bool,
+    pub enable_identity_headers: bool,
 
     /// Socket the proxy listens on.
-    #[serde(default = "default_bind_addr")]
-    pub bind_addr: SocketAddr,
+    #[serde(default = "default_bind_address")]
+    pub bind_address: SocketAddr,
 
     /// TCP connect timeout towards the upstream, in seconds.
     #[serde(default = "default_connect_timeout")]
-    pub upstream_connect_timeout_secs: u64,
+    pub upstream_connect_timeout_seconds: u64,
 
     /// Optional idle (between-reads) timeout on upstream responses, in
     /// seconds. Disabled by default: a timeout here would kill long-lived
     /// `subscriptions/listen` streams during quiet periods.
     #[serde(default)]
-    pub upstream_idle_timeout_secs: Option<u64>,
+    pub upstream_idle_timeout_seconds: Option<u64>,
 
     /// Grace period for draining in-flight requests on SIGTERM, in seconds.
     #[serde(default = "default_shutdown_grace")]
-    pub shutdown_grace_secs: u64,
+    pub shutdown_grace_period_seconds: u64,
 
     /// Maximum accepted request body size, in bytes.
     #[serde(default = "default_max_body_bytes")]
@@ -177,13 +187,13 @@ fn default_token_validation() -> TokenValidationMode {
 fn default_transport_compat() -> TransportCompat {
     TransportCompat::Strict
 }
-fn default_jwks_cache_ttl() -> u64 {
+fn default_jwks_cache_ttl_seconds() -> u64 {
     300
 }
 fn default_clock_skew() -> u64 {
     30
 }
-fn default_bind_addr() -> SocketAddr {
+fn default_bind_address() -> SocketAddr {
     "0.0.0.0:8080".parse().expect("valid literal")
 }
 fn default_connect_timeout() -> u64 {
@@ -230,8 +240,8 @@ impl Config {
     /// override if present, the global list otherwise.
     pub fn required_scopes_for(&self, mcp_method: Option<&str>) -> &[String] {
         mcp_method
-            .and_then(|m| self.method_scopes.get(m))
-            .map(Vec::as_slice)
+            .and_then(|m| self.method_scopes.iter().find(|o| o.method == m))
+            .map(|o| o.scopes.as_slice())
             .unwrap_or(&self.required_scopes)
     }
 
@@ -297,17 +307,27 @@ impl Config {
                 ));
             }
         }
-        for (method, scopes) in &self.method_scopes {
-            if scopes.is_empty() {
+        let mut seen_methods = std::collections::HashSet::new();
+        for entry in &self.method_scopes {
+            if entry.scopes.is_empty() {
                 return Err(ConfigError::invalid(
                     "methodScopes",
-                    format!("override for {method:?} must not be an empty scope list"),
+                    format!(
+                        "override for {:?} must not be an empty scope list",
+                        entry.method
+                    ),
+                ));
+            }
+            if !seen_methods.insert(entry.method.as_str()) {
+                return Err(ConfigError::invalid(
+                    "methodScopes",
+                    format!("duplicate entry for method {:?}", entry.method),
                 ));
             }
         }
-        if self.shutdown_grace_secs == 0 {
+        if self.shutdown_grace_period_seconds == 0 {
             return Err(ConfigError::invalid(
-                "shutdownGraceSecs",
+                "shutdownGracePeriodSeconds",
                 "must be at least 1 second",
             ));
         }
@@ -353,6 +373,19 @@ mod tests {
     }
 
     #[test]
+    fn duplicate_method_override_is_rejected() {
+        let mut cfg = test_config();
+        for _ in 0..2 {
+            cfg.method_scopes.push(MethodScopeOverride {
+                method: "tools/call".into(),
+                scopes: vec!["mcp:tools".into()],
+            });
+        }
+        let err = cfg.validate().unwrap_err();
+        assert!(err.to_string().contains("duplicate"), "got: {err}");
+    }
+
+    #[test]
     fn resource_url_has_no_double_slash() {
         let mut cfg = test_config();
         cfg.proxy_public_url = "https://mcp.example.com/".parse().unwrap();
@@ -374,8 +407,10 @@ mod tests {
     #[test]
     fn method_scope_override_wins() {
         let mut cfg = test_config();
-        cfg.method_scopes
-            .insert("tools/call".into(), vec!["mcp:tools:write".into()]);
+        cfg.method_scopes.push(MethodScopeOverride {
+            method: "tools/call".into(),
+            scopes: vec!["mcp:tools:write".into()],
+        });
         assert_eq!(
             cfg.required_scopes_for(Some("tools/call")),
             &["mcp:tools:write".to_owned()]

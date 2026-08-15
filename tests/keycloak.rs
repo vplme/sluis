@@ -236,7 +236,7 @@ async fn build_app(
         "proxyPublicUrl": "https://mcp.example.com",
         "upstreamMcpUrl": format!("http://{upstream}/mcp"),
         "oidcIssuerUrl": issuer,
-        "identityHeadersEnabled": true,
+        "enableIdentityHeaders": true,
     });
     cfg.as_object_mut()
         .unwrap()

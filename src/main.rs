@@ -109,57 +109,64 @@ async fn check(config: sluis::Config) -> anyhow::Result<()> {
 }
 
 fn print_redacted(config: &sluis::Config) {
-    println!("proxyPublicUrl:             {}", config.proxy_public_url);
-    println!("upstreamMcpUrl:             {}", config.upstream_mcp_url);
-    println!("oidcIssuerUrl:              {}", config.oidc_issuer_url);
-    println!("resource (canonical):       {}", config.resource_url());
-    println!("mcpPath:                    {}", config.mcp_path);
-    println!("bindAddr:                   {}", config.bind_addr);
-    println!("tokenValidation:            {:?}", config.token_validation);
-    println!("transportCompat:            {:?}", config.transport_compat);
-    println!(
-        "scopesSupported:            {}",
-        config.scopes_supported.join(", ")
+    let row = |key: &str, value: &dyn std::fmt::Display| println!("{key:<31}{value}");
+    row("proxyPublicUrl:", &config.proxy_public_url);
+    row("upstreamMcpUrl:", &config.upstream_mcp_url);
+    row("oidcIssuerUrl:", &config.oidc_issuer_url);
+    row("resource (canonical):", &config.resource_url());
+    row("mcpPath:", &config.mcp_path);
+    row("bindAddress:", &config.bind_address);
+    row(
+        "tokenValidation:",
+        &format!("{:?}", config.token_validation),
     );
-    println!(
-        "requiredScopes:             {}",
-        config.required_scopes.join(", ")
+    row(
+        "transportCompat:",
+        &format!("{:?}", config.transport_compat),
     );
+    row("scopesSupported:", &config.scopes_supported.join(", "));
+    row("requiredScopes:", &config.required_scopes.join(", "));
     if !config.method_scopes.is_empty() {
-        let mut methods: Vec<_> = config.method_scopes.iter().collect();
-        methods.sort_by_key(|(m, _)| m.as_str());
-        for (method, scopes) in methods {
-            println!("methodScopes[{method}]:      {}", scopes.join(", "));
+        let mut overrides: Vec<_> = config.method_scopes.iter().collect();
+        overrides.sort_by_key(|o| o.method.as_str());
+        for o in overrides {
+            row(
+                &format!("methodScopes[{}]:", o.method),
+                &o.scopes.join(", "),
+            );
         }
     }
     if config.token_validation == TokenValidationMode::Introspection {
-        println!(
-            "introspectionClientId:      {}",
-            config.introspection_client_id.as_deref().unwrap_or("")
+        row(
+            "introspectionClientId:",
+            &config.introspection_client_id.as_deref().unwrap_or(""),
         );
-        println!("introspectionClientSecret:  <redacted>");
+        row("introspectionClientSecret:", &"<redacted>");
     }
-    println!("jwksCacheTtl:               {}s", config.jwks_cache_ttl);
-    println!("clockSkewSecs:              {}s", config.clock_skew_secs);
-    println!(
-        "identityHeadersEnabled:     {}",
-        config.identity_headers_enabled
+    row(
+        "jwksCacheTtlSeconds:",
+        &format!("{}s", config.jwks_cache_ttl_seconds),
     );
-    println!(
-        "upstreamConnectTimeout:     {}s",
-        config.upstream_connect_timeout_secs
+    row(
+        "clockSkewSeconds:",
+        &format!("{}s", config.clock_skew_seconds),
     );
-    match config.upstream_idle_timeout_secs {
-        Some(s) => println!("upstreamIdleTimeout:        {s}s"),
-        None => println!("upstreamIdleTimeout:        disabled"),
+    row("enableIdentityHeaders:", &config.enable_identity_headers);
+    row(
+        "upstreamConnectTimeoutSeconds:",
+        &format!("{}s", config.upstream_connect_timeout_seconds),
+    );
+    match config.upstream_idle_timeout_seconds {
+        Some(s) => row("upstreamIdleTimeoutSeconds:", &format!("{s}s")),
+        None => row("upstreamIdleTimeoutSeconds:", &"disabled"),
     }
-    println!(
-        "shutdownGraceSecs:          {}s",
-        config.shutdown_grace_secs
+    row(
+        "shutdownGracePeriodSeconds:",
+        &format!("{}s", config.shutdown_grace_period_seconds),
     );
-    println!("maxBodyBytes:               {}", config.max_body_bytes);
+    row("maxBodyBytes:", &config.max_body_bytes);
     match &config.allowed_origins {
-        Some(origins) => println!("allowedOrigins:             {}", origins.join(", ")),
-        None => println!("allowedOrigins:             (origin not checked)"),
+        Some(origins) => row("allowedOrigins:", &origins.join(", ")),
+        None => row("allowedOrigins:", &"(origin not checked)"),
     }
 }

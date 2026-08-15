@@ -32,7 +32,7 @@ pub struct JwksValidator {
     /// Canonical resource URL that must appear in `aud`.
     resource: String,
     jwks_uri: String,
-    clock_skew_secs: u64,
+    clock_skew_seconds: u64,
     cache_ttl: Duration,
     keys: RwLock<KeyCache>,
     refresh_gate: Mutex<Option<Instant>>,
@@ -58,7 +58,7 @@ impl JwksValidator {
         http: reqwest::Client,
         issuer: &Url,
         resource: String,
-        clock_skew_secs: u64,
+        clock_skew_seconds: u64,
         cache_ttl: Duration,
     ) -> Result<Self, DiscoveryError> {
         let metadata = AuthorizationServerMetadata::discover(&http, issuer).await?;
@@ -82,7 +82,7 @@ impl JwksValidator {
             issuer: metadata.issuer,
             resource,
             jwks_uri,
-            clock_skew_secs,
+            clock_skew_seconds,
             cache_ttl,
             keys: RwLock::new(KeyCache {
                 by_kid,
@@ -159,7 +159,7 @@ impl TokenValidator for JwksValidator {
         }
 
         let mut validation = Validation::new(header.alg);
-        validation.leeway = self.clock_skew_secs;
+        validation.leeway = self.clock_skew_seconds;
         validation.validate_nbf = true;
         validation.set_issuer(&[&self.issuer]);
         // Audience containment of the canonical resource URL (RFC 8707).
