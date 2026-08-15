@@ -33,13 +33,13 @@ spec:
       # proxy starts accepting traffic.
       initContainers:
         - name: check
-          image: ghcr.io/vpl/sluis:0.1.0
+          image: ghcr.io/vplme/sluis:0.1.0
           args: ["check", "--config", "/etc/sluis/sluis.yaml"]
           volumeMounts:
             - { name: config, mountPath: /etc/sluis, readOnly: true }
       containers:
         - name: sluis
-          image: ghcr.io/vpl/sluis:0.1.0
+          image: ghcr.io/vplme/sluis:0.1.0
           args: ["serve", "--config", "/etc/sluis/sluis.yaml"]
           ports:
             - { name: http, containerPort: 8080 }
