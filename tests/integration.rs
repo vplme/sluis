@@ -191,10 +191,10 @@ async fn spawn_upstream() -> (SocketAddr, UpstreamSeen) {
 
 async fn build_app(as_uri: &str, upstream: SocketAddr, overrides: serde_json::Value) -> Router {
     let mut cfg = json!({
-        "proxy_public_url": PUBLIC_URL,
-        "upstream_mcp_url": format!("http://{upstream}/mcp"),
-        "oidc_issuer_url": as_uri,
-        "identity_headers_enabled": true,
+        "proxyPublicUrl": PUBLIC_URL,
+        "upstreamMcpUrl": format!("http://{upstream}/mcp"),
+        "oidcIssuerUrl": as_uri,
+        "identityHeadersEnabled": true,
     });
     cfg.as_object_mut()
         .unwrap()
@@ -525,7 +525,7 @@ async fn method_scope_override_enforced_from_header_only() {
     let app = build_app(
         &as_server.uri(),
         upstream,
-        json!({ "method_scopes": { "tools/call": ["mcp:tools", "mcp:tools:write"] } }),
+        json!({ "methodScopes": { "tools/call": ["mcp:tools", "mcp:tools:write"] } }),
     )
     .await;
     let token = mint(&TokenSpec::valid(&as_server.uri())); // scope: mcp:tools only
@@ -559,7 +559,7 @@ async fn compat_mode_forwards_get_stream_and_session_ids() {
     let app = build_app(
         &as_server.uri(),
         upstream,
-        json!({ "transport_compat": "2025" }),
+        json!({ "transportCompat": "2025" }),
     )
     .await;
     let token = mint(&TokenSpec::valid(&as_server.uri()));
@@ -702,9 +702,9 @@ async fn introspection_validates_caches_and_maps_outages_to_503() {
         &as_server.uri(),
         upstream,
         json!({
-            "token_validation": "introspection",
-            "introspection_client_id": "sluis",
-            "introspection_client_secret": "s3cret",
+            "tokenValidation": "introspection",
+            "introspectionClientId": "sluis",
+            "introspectionClientSecret": "s3cret",
         }),
     )
     .await;
@@ -750,12 +750,7 @@ async fn introspection_validates_caches_and_maps_outages_to_503() {
 async fn oversized_bodies_are_rejected() {
     let as_server = mock_as().await;
     let (upstream, _) = spawn_upstream().await;
-    let app = build_app(
-        &as_server.uri(),
-        upstream,
-        json!({ "max_body_bytes": 1024 }),
-    )
-    .await;
+    let app = build_app(&as_server.uri(), upstream, json!({ "maxBodyBytes": 1024 })).await;
     let token = mint(&TokenSpec::valid(&as_server.uri()));
 
     // Real clients send Content-Length for sized bodies; the limit layer

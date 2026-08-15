@@ -8,13 +8,13 @@ metadata:
   namespace: mcp
 data:
   sluis.yaml: |
-    proxy_public_url: https://mcp.example.com
-    upstream_mcp_url: http://flux-operator-mcp.flux-system.svc:9090/mcp
-    oidc_issuer_url: https://idp.example.com/realms/lab
-    transport_compat: "2025"           # flux-operator-mcp speaks the 2025 dialect
-    scopes_supported: [mcp:tools]
-    required_scopes: [mcp:tools]
-    identity_headers_enabled: true
+    proxyPublicUrl: https://mcp.example.com
+    upstreamMcpUrl: http://flux-operator-mcp.flux-system.svc:9090/mcp
+    oidcIssuerUrl: https://idp.example.com/realms/lab
+    transportCompat: "2025"            # flux-operator-mcp speaks the 2025 dialect
+    scopesSupported: [mcp:tools]
+    requiredScopes: [mcp:tools]
+    identityHeadersEnabled: true
 ---
 apiVersion: apps/v1
 kind: Deployment

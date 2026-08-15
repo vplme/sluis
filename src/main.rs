@@ -67,11 +67,14 @@ fn load_config(path: Option<&std::path::Path>) -> anyhow::Result<sluis::Config> 
     builder = builder.add_source(
         config::Environment::with_prefix("SLUIS")
             .source(Some(env))
+            // Env vars stay SCREAMING_SNAKE (SLUIS_PROXY_PUBLIC_URL); this
+            // maps them onto the camelCase config keys (proxyPublicUrl).
+            .convert_case(config::Case::Camel)
             .try_parsing(true)
             .list_separator(",")
-            .with_list_parse_key("scopes_supported")
-            .with_list_parse_key("required_scopes")
-            .with_list_parse_key("allowed_origins"),
+            .with_list_parse_key("scopesSupported")
+            .with_list_parse_key("requiredScopes")
+            .with_list_parse_key("allowedOrigins"),
     );
 
     let config: sluis::Config = builder
@@ -106,63 +109,57 @@ async fn check(config: sluis::Config) -> anyhow::Result<()> {
 }
 
 fn print_redacted(config: &sluis::Config) {
-    println!("proxy_public_url:             {}", config.proxy_public_url);
-    println!("upstream_mcp_url:             {}", config.upstream_mcp_url);
-    println!("oidc_issuer_url:              {}", config.oidc_issuer_url);
-    println!("resource (canonical):         {}", config.resource_url());
-    println!("mcp_path:                     {}", config.mcp_path);
-    println!("bind_addr:                    {}", config.bind_addr);
+    println!("proxyPublicUrl:             {}", config.proxy_public_url);
+    println!("upstreamMcpUrl:             {}", config.upstream_mcp_url);
+    println!("oidcIssuerUrl:              {}", config.oidc_issuer_url);
+    println!("resource (canonical):       {}", config.resource_url());
+    println!("mcpPath:                    {}", config.mcp_path);
+    println!("bindAddr:                   {}", config.bind_addr);
+    println!("tokenValidation:            {:?}", config.token_validation);
+    println!("transportCompat:            {:?}", config.transport_compat);
     println!(
-        "token_validation:             {:?}",
-        config.token_validation
-    );
-    println!(
-        "transport_compat:             {:?}",
-        config.transport_compat
-    );
-    println!(
-        "scopes_supported:             {}",
+        "scopesSupported:            {}",
         config.scopes_supported.join(", ")
     );
     println!(
-        "required_scopes:              {}",
+        "requiredScopes:             {}",
         config.required_scopes.join(", ")
     );
     if !config.method_scopes.is_empty() {
         let mut methods: Vec<_> = config.method_scopes.iter().collect();
         methods.sort_by_key(|(m, _)| m.as_str());
         for (method, scopes) in methods {
-            println!("method_scopes[{method}]:      {}", scopes.join(", "));
+            println!("methodScopes[{method}]:      {}", scopes.join(", "));
         }
     }
     if config.token_validation == TokenValidationMode::Introspection {
         println!(
-            "introspection_client_id:      {}",
+            "introspectionClientId:      {}",
             config.introspection_client_id.as_deref().unwrap_or("")
         );
-        println!("introspection_client_secret:  <redacted>");
+        println!("introspectionClientSecret:  <redacted>");
     }
-    println!("jwks_cache_ttl:               {}s", config.jwks_cache_ttl);
-    println!("clock_skew_secs:              {}s", config.clock_skew_secs);
+    println!("jwksCacheTtl:               {}s", config.jwks_cache_ttl);
+    println!("clockSkewSecs:              {}s", config.clock_skew_secs);
     println!(
-        "identity_headers_enabled:     {}",
+        "identityHeadersEnabled:     {}",
         config.identity_headers_enabled
     );
     println!(
-        "upstream_connect_timeout:     {}s",
+        "upstreamConnectTimeout:     {}s",
         config.upstream_connect_timeout_secs
     );
     match config.upstream_idle_timeout_secs {
-        Some(s) => println!("upstream_idle_timeout:        {s}s"),
-        None => println!("upstream_idle_timeout:        disabled"),
+        Some(s) => println!("upstreamIdleTimeout:        {s}s"),
+        None => println!("upstreamIdleTimeout:        disabled"),
     }
     println!(
-        "shutdown_grace_secs:          {}s",
+        "shutdownGraceSecs:          {}s",
         config.shutdown_grace_secs
     );
-    println!("max_body_bytes:               {}", config.max_body_bytes);
+    println!("maxBodyBytes:               {}", config.max_body_bytes);
     match &config.allowed_origins {
-        Some(origins) => println!("allowed_origins:              {}", origins.join(", ")),
-        None => println!("allowed_origins:              (origin not checked)"),
+        Some(origins) => println!("allowedOrigins:             {}", origins.join(", ")),
+        None => println!("allowedOrigins:             (origin not checked)"),
     }
 }

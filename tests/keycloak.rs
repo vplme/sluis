@@ -233,10 +233,10 @@ async fn build_app(
     overrides: serde_json::Value,
 ) -> axum::Router {
     let mut cfg = json!({
-        "proxy_public_url": "https://mcp.example.com",
-        "upstream_mcp_url": format!("http://{upstream}/mcp"),
-        "oidc_issuer_url": issuer,
-        "identity_headers_enabled": true,
+        "proxyPublicUrl": "https://mcp.example.com",
+        "upstreamMcpUrl": format!("http://{upstream}/mcp"),
+        "oidcIssuerUrl": issuer,
+        "identityHeadersEnabled": true,
     });
     cfg.as_object_mut()
         .unwrap()
@@ -347,9 +347,9 @@ async fn keycloak_end_to_end_jwks_and_introspection() {
         &issuer,
         upstream,
         json!({
-            "token_validation": "introspection",
-            "introspection_client_id": "sluis-introspector",
-            "introspection_client_secret": "introspector-secret",
+            "tokenValidation": "introspection",
+            "introspectionClientId": "sluis-introspector",
+            "introspectionClientSecret": "introspector-secret",
         }),
     )
     .await;

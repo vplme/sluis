@@ -37,8 +37,8 @@ sequenceDiagram
 | Path | Auth | Purpose |
 |---|---|---|
 | `/.well-known/oauth-protected-resource` | none | RFC 9728 PRM (CORS: any origin, GET) |
-| `/.well-known/oauth-protected-resource<mcp_path>` | none | RFC 9728 §3 path-suffixed variant |
-| `<mcp_path>` (default `/mcp`) | bearer | Reverse proxy to the upstream MCP server |
+| `/.well-known/oauth-protected-resource<mcpPath>` | none | RFC 9728 §3 path-suffixed variant |
+| `<mcpPath>` (default `/mcp`) | bearer | Reverse proxy to the upstream MCP server |
 | `/healthz` | none | Liveness — deliberately independent of IdP reachability |
 
 Error responses:
@@ -53,13 +53,13 @@ Error responses:
 
 **`strict` (default)** targets the 2026-07-28 Streamable HTTP binding: stateless, POST-only (`GET`/`DELETE` answer `405`), mandatory `MCP-Protocol-Version` and `Mcp-Method` headers, `Mcp-Name` mandatory for `tools/call` / `resources/read` / `prompts/get` (decided from the `Mcp-Method` header only — the proxy never parses bodies). `Mcp-Session-Id` and `Last-Event-ID` are ignored and not forwarded, per the spec's guidance for this revision.
 
-**`2025` (`transport_compat: "2025"`)** for upstreams that still speak the 2025-era dialect (e.g. flux-operator-mcp): forwards `GET` (listening streams) and `DELETE` (session teardown), passes `Mcp-Session-Id` through transparently, and does not require the 2026 metadata headers (per-method scope overrides then apply only when `Mcp-Method` is present). **Authorization semantics are identical in both modes** — a `GET` needs a valid token exactly like a `POST`; compat only relaxes transport shape. Session ids are never used for authorization decisions.
+**`2025` (`transportCompat: "2025"`)** for upstreams that still speak the 2025-era dialect (e.g. flux-operator-mcp): forwards `GET` (listening streams) and `DELETE` (session teardown), passes `Mcp-Session-Id` through transparently, and does not require the 2026 metadata headers (per-method scope overrides then apply only when `Mcp-Method` is present). **Authorization semantics are identical in both modes** — a `GET` needs a valid token exactly like a `POST`; compat only relaxes transport shape. Session ids are never used for authorization decisions.
 
 In both modes, responses stream through unbuffered with no total-duration timeout, so long-lived streams (`subscriptions/listen`, SSE) survive.
 
 ## Token validation
 
-Two modes, chosen with `token_validation`:
+Two modes, chosen with `tokenValidation`:
 
 | | `jwks` (default) | `introspection` |
 |---|---|---|
@@ -67,7 +67,7 @@ Two modes, chosen with `token_validation`:
 | Per-request cost | local crypto, no network | network round-trip to IdP (cached ≤ 30 s) |
 | IdP outage | keeps working — cached keys are served stale, refresh failures only log a warning | requests fail `503` on cache misses |
 | Revocation | **none before token expiry** — keep access-token lifetimes short at the IdP | takes effect within ≤ 30 s cache TTL |
-| Extra config | — | `introspection_client_id` / `introspection_client_secret` |
+| Extra config | — | `introspectionClientId` / `introspectionClientSecret` |
 
 Both modes validate the same policy: expiry/not-before with configurable clock skew, exact issuer pinning (tokens from any other issuer or realm are rejected even if the signature validates), **audience containment of the canonical resource URL**, and required scopes. Scopes are read from the `scope` claim (RFC 9068), with a fallback to the common `scp` variant.
 
@@ -77,13 +77,13 @@ JWKS operational details: keys are re-fetched when the cache TTL lapses or a tok
 
 ### Audience validation is not optional
 
-The proxy rejects any token whose `aud` does not contain the canonical resource URL (`proxy_public_url` + `mcp_path`, e.g. `https://mcp.example.com/mcp`) — exact match, no catch-all values (`api`, the issuer URL, the bare host). This is the defense against tokens minted for *other* services at the same IdP being replayed here.
+The proxy rejects any token whose `aud` does not contain the canonical resource URL (`proxyPublicUrl` + `mcpPath`, e.g. `https://mcp.example.com/mcp`) — exact match, no catch-all values (`api`, the issuer URL, the bare host). This is the defense against tokens minted for *other* services at the same IdP being replayed here.
 
 **IdP-side requirements** for this to work end to end:
 
 - Clients need a way to get a `client_id`: **CIMD** (Client ID Metadata Documents) support at the AS so MCP clients can register by URL, and/or clients pre-registered manually whose credentials are handed to the MCP client (see [pre-registered clients with Claude Code](#with-claude-code)). Both work; sluis is agnostic to registration mode.
 - The AS must set the token `aud` from the **RFC 8707 `resource` parameter** that MCP clients send (`resource=https://mcp.example.com/mcp`). In Keycloak that's an audience mapper / fine-grained resource support; in other IdPs the equivalent resource-indicator feature.
-- Define the scope(s) you configure in `required_scopes` (default `mcp:tools`) and allow clients to request them.
+- Define the scope(s) you configure in `requiredScopes` (default `mcp:tools`) and allow clients to request them.
 
 If your IdP cannot issue per-resource audiences, that is a configuration problem to fix **at the IdP** — sluis will not paper over it with a lax audience check.
 
@@ -91,38 +91,38 @@ If your IdP cannot issue per-resource audiences, that is a configuration problem
 
 An optional YAML file (`--config` / `SLUIS_CONFIG`) plus `SLUIS_`-prefixed environment variables. Env beats file beats defaults; everything is deserialized once into a single typed struct and validated with explicit errors. Settings never become CLI flags.
 
-| Key (env: `SLUIS_<UPPERCASED>`) | Default | Meaning |
+| Key (env: `SLUIS_` + SCREAMING_SNAKE, e.g. `SLUIS_PROXY_PUBLIC_URL`) | Default | Meaning |
 |---|---|---|
-| `proxy_public_url` | — (required) | External base URL; every advertised URL derives from this, never from `Host` headers |
-| `upstream_mcp_url` | — (required) | The unsecured upstream MCP endpoint |
-| `oidc_issuer_url` | — (required) | AS issuer; discovery tries `/.well-known/openid-configuration` then `/.well-known/oauth-authorization-server` |
-| `mcp_path` | `/mcp` | MCP endpoint path; also the resource-URL suffix |
-| `scopes_supported` | `mcp:tools` | Advertised in PRM (comma-separated in env) |
-| `required_scopes` | `mcp:tools` | Enforced on every MCP request |
-| `method_scopes` | `{}` | Per-`Mcp-Method` overrides, e.g. stricter scopes for `tools/call` (YAML only; replaces the global list for that method) |
-| `token_validation` | `jwks` | `jwks` \| `introspection` |
-| `transport_compat` | `strict` | `strict` \| `"2025"` |
-| `introspection_client_id` / `_secret` | — | Required in introspection mode |
-| `jwks_cache_ttl` | `300` | Seconds before background JWKS refresh |
-| `clock_skew_secs` | `30` | Leeway on `exp`/`nbf` |
-| `identity_headers_enabled` | `false` | Inject `X-Forwarded-User` (= `sub`) and `X-Forwarded-Scopes` upstream; inbound values are always stripped either way |
-| `bind_addr` | `0.0.0.0:8080` | Listen socket |
-| `upstream_connect_timeout_secs` | `5` | TCP connect timeout to upstream |
-| `upstream_idle_timeout_secs` | disabled | Optional between-reads timeout; leave off if the upstream serves quiet long-lived streams without keep-alives |
-| `shutdown_grace_secs` | `20` | SIGTERM drain deadline before aborting in-flight streams |
-| `max_body_bytes` | `2097152` | Request body cap (2 MiB) |
-| `allowed_origins` | unset | When set, requests with an `Origin` header not in the list get `403`; when unset, `Origin` is not checked (see security notes) |
+| `proxyPublicUrl` | — (required) | External base URL; every advertised URL derives from this, never from `Host` headers |
+| `upstreamMcpUrl` | — (required) | The unsecured upstream MCP endpoint |
+| `oidcIssuerUrl` | — (required) | AS issuer; discovery tries `/.well-known/openid-configuration` then `/.well-known/oauth-authorization-server` |
+| `mcpPath` | `/mcp` | MCP endpoint path; also the resource-URL suffix |
+| `scopesSupported` | `mcp:tools` | Advertised in PRM (comma-separated in env) |
+| `requiredScopes` | `mcp:tools` | Enforced on every MCP request |
+| `methodScopes` | `{}` | Per-`Mcp-Method` overrides, e.g. stricter scopes for `tools/call` (YAML only; replaces the global list for that method) |
+| `tokenValidation` | `jwks` | `jwks` \| `introspection` |
+| `transportCompat` | `strict` | `strict` \| `"2025"` |
+| `introspectionClientId` / `introspectionClientSecret` | — | Required in introspection mode |
+| `jwksCacheTtl` | `300` | Seconds before background JWKS refresh |
+| `clockSkewSecs` | `30` | Leeway on `exp`/`nbf` |
+| `identityHeadersEnabled` | `false` | Inject `X-Forwarded-User` (= `sub`) and `X-Forwarded-Scopes` upstream; inbound values are always stripped either way |
+| `bindAddr` | `0.0.0.0:8080` | Listen socket |
+| `upstreamConnectTimeoutSecs` | `5` | TCP connect timeout to upstream |
+| `upstreamIdleTimeoutSecs` | disabled | Optional between-reads timeout; leave off if the upstream serves quiet long-lived streams without keep-alives |
+| `shutdownGraceSecs` | `20` | SIGTERM drain deadline before aborting in-flight streams |
+| `maxBodyBytes` | `2097152` | Request body cap (2 MiB) |
+| `allowedOrigins` | unset | When set, requests with an `Origin` header not in the list get `403`; when unset, `Origin` is not checked (see security notes) |
 
 Example `sluis.yaml`:
 
 ```yaml
-proxy_public_url: https://mcp.example.com
-upstream_mcp_url: http://127.0.0.1:9090/mcp
-oidc_issuer_url: https://idp.example.com/realms/lab
-required_scopes: [mcp:tools]
-method_scopes:
+proxyPublicUrl: https://mcp.example.com
+upstreamMcpUrl: http://127.0.0.1:9090/mcp
+oidcIssuerUrl: https://idp.example.com/realms/lab
+requiredScopes: [mcp:tools]
+methodScopes:
   tools/call: [mcp:tools, mcp:tools:write]
-identity_headers_enabled: true
+identityHeadersEnabled: true
 ```
 
 ## CLI
@@ -151,7 +151,7 @@ See [`examples/embedded.rs`](examples/embedded.rs).
 ## Operational behavior
 
 - **IdP outage**: `/healthz` never depends on the IdP. JWKS mode serves cached keys stale on refresh failure. Only startup discovery hard-fails.
-- **Graceful shutdown**: SIGTERM/SIGINT → stop accepting, drain in-flight requests up to `shutdown_grace_secs` (default 20 s), then abort remaining streams.
+- **Graceful shutdown**: SIGTERM/SIGINT → stop accepting, drain in-flight requests up to `shutdownGraceSecs` (default 20 s), then abort remaining streams.
 - **Streaming**: responses pass through with no buffering; `X-Accel-Buffering: no` from the upstream is forwarded as-is. No total-duration response timeout exists.
 - **CORS**: permissive (`GET`, any origin) on `/.well-known/*` only — browser-based MCP clients fetch PRM cross-origin. No permissive CORS on the MCP endpoint.
 
@@ -161,11 +161,11 @@ See [`examples/embedded.rs`](examples/embedded.rs).
 - Inbound `X-Forwarded-User`/`X-Forwarded-Scopes` are always stripped; when enabled they are re-injected from the *validated* token only.
 - Tokens and `Authorization` headers are never logged. Per-request logs carry `Mcp-Method`/`Mcp-Name`/`sub`/status — an audit trail without bodies.
 - Authorization is stateless and per-request: every request is validated independently; nothing is keyed on connections or client-supplied identifiers (session ids are opaque pass-through in compat mode).
-- TLS terminates at the edge (ingress); the proxy serves HTTP and builds all URLs from `proxy_public_url`, never from `Host` headers.
+- TLS terminates at the edge (ingress); the proxy serves HTTP and builds all URLs from `proxyPublicUrl`, never from `Host` headers.
 
 ### Deviations from the spec, flagged
 
-- The Streamable HTTP spec says servers **MUST** validate the `Origin` header (DNS-rebinding defence, aimed mostly at locally-running servers). sluis makes this opt-in via `allowed_origins` because it typically runs behind a TLS-terminating ingress on a public hostname where rebinding does not apply, and an always-on check would break non-browser clients that send unexpected `Origin` values. **Set `allowed_origins` if the proxy is reachable from browsers on private networks.**
+- The Streamable HTTP spec says servers **MUST** validate the `Origin` header (DNS-rebinding defence, aimed mostly at locally-running servers). sluis makes this opt-in via `allowedOrigins` because it typically runs behind a TLS-terminating ingress on a public hostname where rebinding does not apply, and an always-on check would break non-browser clients that send unexpected `Origin` values. **Set `allowedOrigins` if the proxy is reachable from browsers on private networks.**
 - The spec table marks `Mcp-Method` required for "all requests" but leaves header requirements for *notification* POSTs undefined (the 2026-07-28 core protocol defines no client→server notifications over Streamable HTTP). Strict mode requires `Mcp-Method` on every POST; an extension that sends notification POSTs without it would be rejected — use compat mode for such upstreams.
 - The prompt-level challenge format is extended with the spec's **SHOULD**-level `scope` parameter on `401` challenges, giving clients least-privilege scope guidance up front.
 
@@ -259,7 +259,7 @@ No `unsafe` anywhere (`#![forbid(unsafe_code)]`).
 
 ## Future work (deliberately out of scope for v1)
 
-- Per-tool scope routing on `Mcp-Name` (the `method_scopes` config shape extends naturally to a `name_scopes` sibling).
+- Per-tool scope routing on `Mcp-Name` (the `methodScopes` config shape extends naturally to a `nameScopes` sibling).
 - Multi-upstream routing — run one sluis instance per upstream MCP server instead.
 - Metrics endpoint (Prometheus), rate limiting, admin API/UI, multi-replica shared caches.
 - DCR/CIMD handling, token issuance, or any authorization-server behavior — permanently out of scope; that's the IdP's job.

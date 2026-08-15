@@ -72,10 +72,12 @@ impl<'de> Deserialize<'de> for TransportCompat {
 
 /// Runtime configuration. See the README for the full reference.
 ///
-/// All fields can come from a YAML file or from `SLUIS_`-prefixed environment
-/// variables (env wins). [`Config::validate`] must be called before use.
+/// All fields can come from a YAML file (camelCase keys, e.g.
+/// `proxyPublicUrl`) or from `SLUIS_`-prefixed environment variables
+/// (`SLUIS_PROXY_PUBLIC_URL`; env wins). [`Config::validate`] must be called
+/// before use.
 #[derive(Debug, Clone, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct Config {
     /// External base URL of this proxy. Every URL the proxy hands out
     /// (metadata, challenges) derives from this — never from `Host` headers.
@@ -236,9 +238,9 @@ impl Config {
     /// Cross-field validation with explicit, actionable error messages.
     pub fn validate(&self) -> Result<(), ConfigError> {
         for (key, url) in [
-            ("proxy_public_url", &self.proxy_public_url),
-            ("upstream_mcp_url", &self.upstream_mcp_url),
-            ("oidc_issuer_url", &self.oidc_issuer_url),
+            ("proxyPublicUrl", &self.proxy_public_url),
+            ("upstreamMcpUrl", &self.upstream_mcp_url),
+            ("oidcIssuerUrl", &self.oidc_issuer_url),
         ] {
             if !matches!(url.scheme(), "http" | "https") {
                 return Err(ConfigError::invalid(
@@ -252,7 +254,7 @@ impl Config {
         }
         if !self.mcp_path.starts_with('/') || self.mcp_path.len() < 2 {
             return Err(ConfigError::invalid(
-                "mcp_path",
+                "mcpPath",
                 format!(
                     "must be a non-root path starting with '/', got {:?}",
                     self.mcp_path
@@ -261,13 +263,13 @@ impl Config {
         }
         if self.mcp_path.ends_with('/') {
             return Err(ConfigError::invalid(
-                "mcp_path",
+                "mcpPath",
                 "must not end with '/' (the canonical resource URL has no trailing slash)",
             ));
         }
         if self.required_scopes.is_empty() {
             return Err(ConfigError::invalid(
-                "required_scopes",
+                "requiredScopes",
                 "must not be empty; the proxy always enforces at least one scope",
             ));
         }
@@ -279,8 +281,8 @@ impl Config {
                 .is_empty()
             {
                 return Err(ConfigError::invalid(
-                    "introspection_client_id",
-                    "required when token_validation = introspection",
+                    "introspectionClientId",
+                    "required when tokenValidation = introspection",
                 ));
             }
             if self
@@ -290,22 +292,22 @@ impl Config {
                 .is_empty()
             {
                 return Err(ConfigError::invalid(
-                    "introspection_client_secret",
-                    "required when token_validation = introspection",
+                    "introspectionClientSecret",
+                    "required when tokenValidation = introspection",
                 ));
             }
         }
         for (method, scopes) in &self.method_scopes {
             if scopes.is_empty() {
                 return Err(ConfigError::invalid(
-                    "method_scopes",
+                    "methodScopes",
                     format!("override for {method:?} must not be an empty scope list"),
                 ));
             }
         }
         if self.shutdown_grace_secs == 0 {
             return Err(ConfigError::invalid(
-                "shutdown_grace_secs",
+                "shutdownGraceSecs",
                 "must be at least 1 second",
             ));
         }
@@ -319,9 +321,9 @@ mod tests {
 
     pub(crate) fn test_config() -> Config {
         serde_json::from_value(serde_json::json!({
-            "proxy_public_url": "https://mcp.example.com",
-            "upstream_mcp_url": "http://127.0.0.1:9000/mcp",
-            "oidc_issuer_url": "https://idp.example.com/realms/lab",
+            "proxyPublicUrl": "https://mcp.example.com",
+            "upstreamMcpUrl": "http://127.0.0.1:9000/mcp",
+            "oidcIssuerUrl": "https://idp.example.com/realms/lab",
         }))
         .expect("valid test config")
     }
@@ -366,7 +368,7 @@ mod tests {
         let mut cfg = test_config();
         cfg.token_validation = TokenValidationMode::Introspection;
         let err = cfg.validate().unwrap_err();
-        assert!(err.to_string().contains("introspection_client_id"));
+        assert!(err.to_string().contains("introspectionClientId"));
     }
 
     #[test]

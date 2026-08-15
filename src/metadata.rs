@@ -44,9 +44,9 @@ mod tests {
 
     fn config() -> Config {
         serde_json::from_value(serde_json::json!({
-            "proxy_public_url": "https://mcp.example.com",
-            "upstream_mcp_url": "http://127.0.0.1:9000/mcp",
-            "oidc_issuer_url": "https://idp.example.com/realms/lab/",
+            "proxyPublicUrl": "https://mcp.example.com",
+            "upstreamMcpUrl": "http://127.0.0.1:9000/mcp",
+            "oidcIssuerUrl": "https://idp.example.com/realms/lab/",
         }))
         .unwrap()
     }
