@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 description = "OAuth 2.1 resource-server proxy for MCP"
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/vpl/sluis"
+repository = "https://github.com/vplme/sluis"
 keywords = ["mcp", "oauth", "proxy", "resource-server"]
 categories = ["web-programming::http-server", "authentication"]
 
